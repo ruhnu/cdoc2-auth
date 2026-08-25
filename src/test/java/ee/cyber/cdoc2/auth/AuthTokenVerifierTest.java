@@ -234,6 +234,28 @@ class AuthTokenVerifierTest {
             "Actual message: " + exception.getMessage());
     }
 
+    @Test
+    void verifyMidTokenFailsWhenRpCountersignatureInvalid() throws Exception {
+        RpHttpSignatureVerifier.RpHttpSignatureParams invalidCsParams =
+            new RpHttpSignatureVerifier.RpHttpSignatureParams(
+                CS_RP_SIGNED_HASH,
+                CS_RP_NAME,
+                CS_SIGNATURE_INPUT,
+                // mangled signature value — structurally invalid base64 wrapper
+                "rp-sig=:not-a-valid-base64-signature:",
+                List.of(JWK.parse(RP_SERVER_WELL_KNOWN_JWK_JSON))
+            );
+
+        assertThrows(VerificationException.class,
+            () -> defaultAuthTokenVerifier.verify(
+                MID_AUTH_TOKEN.getSdJwt(),
+                MID_EC_SIGNING_CERTIFICATE_BASE64URL,
+                null,
+                invalidCsParams
+            )
+        );
+    }
+
     private TokenVerificationResponse verifySidToken(String token) throws VerificationException {
         return defaultAuthTokenVerifier.verify(
             token,
