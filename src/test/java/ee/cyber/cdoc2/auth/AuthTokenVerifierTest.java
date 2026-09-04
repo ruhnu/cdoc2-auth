@@ -234,6 +234,46 @@ class AuthTokenVerifierTest {
             "Actual message: " + exception.getMessage());
     }
 
+    @Test
+    void verifyMidTokenFailsWhenRpCountersignatureInvalid() throws Exception {
+        RpHttpSignatureVerifier.RpHttpSignatureParams invalidCsParams =
+            new RpHttpSignatureVerifier.RpHttpSignatureParams(
+                CS_RP_SIGNED_HASH,
+                CS_RP_NAME,
+                CS_SIGNATURE_INPUT,
+                // mangled signature value — structurally invalid base64 wrapper
+                "rp-sig=:not-a-valid-base64-signature:",
+                List.of(JWK.parse(RP_SERVER_WELL_KNOWN_JWK_JSON))
+            );
+
+        assertThrows(VerificationException.class,
+            () -> defaultAuthTokenVerifier.verify(
+                MID_AUTH_TOKEN.getSdJwt(),
+                MID_EC_SIGNING_CERTIFICATE_BASE64URL,
+                null,
+                invalidCsParams
+            )
+        );
+    }
+
+    @Test
+    void verifySidTokenWithOptionalRpCountersignaturePasses() throws Exception {
+        TokenVerificationResponse response = defaultAuthTokenVerifier.verify(
+            SID_AUTH_TOKEN.getSdJwt(),
+            SID_SIGNING_CERTIFICATE_BASE64URL,
+            new AuthTokenVerifier.SidAuthTokenVerificationParams(
+                SIGNATURE_VALIDATION_PARAMS_BASE64URL,
+                "DEMO",
+                "smart-id-demo"
+            ),
+            getDefaultHttpSignatureParams()
+        );
+
+        assertNotNull(response);
+        assertTrue(response.nonceUri().getPath().contains(AUTH_NONCE_URI_PATH));
+        assertEquals("PNOEE-40504040001", response.identifier().getSemanticsIdentifier());
+    }
+
     private TokenVerificationResponse verifySidToken(String token) throws VerificationException {
         return defaultAuthTokenVerifier.verify(
             token,
