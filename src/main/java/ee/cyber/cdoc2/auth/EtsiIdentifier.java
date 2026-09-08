@@ -6,9 +6,10 @@ import java.util.Objects;
 
 /**
  * Natural person semantics identifier from ETSI319412-1, example "etsi/PNOEE-48010010101"
- * @see <a href="https://www.etsi.org/deliver/etsi_en/319400_319499/31941201/01.04.02_20/en_31941201v010402a.pdf">ETSI319412-1</a>
+ * @see <a href="https://www.etsi.org/deliver/etsi_en/319400_319499/31941201/01.04.02_20/en_31941201v010402a.pdf">
+ *     ETSI319412-1</a>
  */
-public class EtsiIdentifier {
+public final class EtsiIdentifier {
 
     public static final String PREFIX = "etsi/";
 
@@ -21,7 +22,7 @@ public class EtsiIdentifier {
     private static final int COUNTRY_CODE_START = (PREFIX + "PNO").length();
     private static final int COUNTRY_CODE_END = COUNTRY_CODE_START + "EE".length();
 
-    private static final int IDENTIFIER_START = (PREFIX +"PNOEE-").length();
+    private static final int IDENTIFIER_START = (PREFIX + "PNOEE-").length();
 
     private final String etsiSemanticsIdentifier;
 
@@ -58,17 +59,23 @@ public class EtsiIdentifier {
      * For "etsi/PNOEE-48010010101" returns "48010010101"
      * @return identifier part of semantics identifier (part after '-')
      */
-    public String getIdentifier() { return this.identifier; }
+    public String getIdentifier() {
+        return this.identifier;
+    }
 
     /**
      * For "etsi/PNOEE-48010010101" returns "EE"
      */
-    public String getCountryCode() { return this.countryCode; }
+    public String getCountryCode() {
+        return this.countryCode;
+    }
 
     /**
      * For "etsi/PNOEE-48010010101" returns "PNO"
      */
-    public IdentityType getIdentityType() { return this.identityType; }
+    public IdentityType getIdentityType() {
+        return this.identityType;
+    }
 
     /**
      * @return identifier without prefix "etsi/", example "PNOEE-48010010101"
@@ -110,7 +117,7 @@ public class EtsiIdentifier {
      */
     private String parseCountryCode(String etsi) {
         String cc =  etsi.substring(COUNTRY_CODE_START, COUNTRY_CODE_END);
-        if (!cc.matches("[A-Z]+")){
+        if (!cc.matches("[A-Z]+")) {
             throw new InvalidEtsiSemanticsIdentifierException("Country code \""
                 + cc + "\" should contain only uppercase characters ");
         }

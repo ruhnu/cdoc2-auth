@@ -100,8 +100,8 @@ public class SessionTokenVerifier {
         String kid = header.getKeyID();
 
         JWK jwk = jwtPublicKeys.stream().filter(key -> key.getKeyID().equals(kid))
-            .findFirst().orElseThrow(() -> new VerificationException("No key found matching kid " +
-                "in JWT header"));
+            .findFirst().orElseThrow(() -> new VerificationException("No key found matching kid "
+                + "in JWT header"));
 
         if (!isValidJwtSignature(signedJWT, jwk)) {
             throw new VerificationException("Invalid JWT signature");
