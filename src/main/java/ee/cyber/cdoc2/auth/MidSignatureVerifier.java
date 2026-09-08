@@ -14,6 +14,10 @@ import ee.cyber.cdoc2.auth.exception.VerificationException;
 
 final class MidSignatureVerifier {
 
+    private MidSignatureVerifier() {
+        // utility class
+    }
+
     static void verify(
         SignedJWT signedJWT,
         X509Certificate cert

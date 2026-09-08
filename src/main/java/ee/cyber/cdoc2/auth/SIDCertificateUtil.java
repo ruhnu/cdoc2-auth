@@ -19,13 +19,17 @@ import java.util.Map;
 public final class SIDCertificateUtil {
     private static final Logger log = LoggerFactory.getLogger(SIDCertificateUtil.class);
 
-    private SIDCertificateUtil() {} // utility class
+    private SIDCertificateUtil() {
+        // utility class
+    }
+
     /**
      * Parse serialNumber from certificate subjectDN serialNumber
      * (example subjectDN='SERIALNUMBER=PNOEE-30303039914, GIVENNAME=OK, SURNAME=TESTNUMBER, CN="TESTNUMBER,OK", C=EE')
      * @param sidCert smart-id certificate
      * @return semanticsIdentifier as String (for example PNOEE-30303039914)
-     * @throws IllegalCertificateException when certificate subjectDN doesn't contain SERIALNUMBER field or subjectDN is erroneous
+     * @throws IllegalCertificateException when certificate subjectDN doesn't contain SERIALNUMBER field
+     *     or subjectDN is erroneous
      */
     public static String getSemanticsIdentifier(X509Certificate sidCert)  throws IllegalCertificateException {
         X500Principal subjectX500Principal = sidCert.getSubjectX500Principal();

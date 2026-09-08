@@ -16,9 +16,10 @@ import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.JWK;
 
+
 import ee.cyber.cdoc2.auth.exception.VerificationException;
 
-public class RpHttpSignatureVerifier {
+public final class RpHttpSignatureVerifier {
     private static final String RP_SIGNATURE_LABEL = "rp-sig";
 
     private RpHttpSignatureVerifier() {

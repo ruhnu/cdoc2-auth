@@ -18,14 +18,16 @@ import static ee.cyber.cdoc2.auth.Constants.NONCE;
  * Represents /key-shares/${shareId} access data used in auth token.
  * Auth token encodes share access data as URL that has the following format:
  * "https://host:443/key-shares/${shareId}?nonce=${nonce}"
- * For example "https://cdoc-ccs.ria.ee:443/key-shares/9EE90F2D-D946-4D54-9C3D-F4C68F7FFAE3?nonce=649a44d6cd9827cae3f3df04fd5eda98246d2dde":
+ * For example
+ * "https://cdoc-ccs.ria.ee:443/key-shares/9EE90F2D-D946-4D54-9C3D-F4C68F7FFAE3
+ * ?nonce=649a44d6cd9827cae3f3df04fd5eda98246d2dde":
  * <ul>
  * <li> serverBaseUrl is "https://cdoc-ccs.ria.ee:443" (Note: /key-shares is OAS endpoint and not part of baseUrl)
  * <li> shareId is "9EE90F2D-D946-4D54-9C3D-F4C68F7FFAE3"
  * <li> nonce is "649a44d6cd9827cae3f3df04fd5eda98246d2dde"
  * </ul>
  */
-public class ShareAccessData {
+public final class ShareAccessData {
 
 
     private final String serverBaseUrl;
@@ -60,8 +62,6 @@ public class ShareAccessData {
         return this.serverBaseUrl;
     }
 
-
-    // https://cdoc-ccs.ria.ee:443/key-shares/9EE90F2D-D946-4D54-9C3D-F4C68F7FFAE3?nonce=649a44d6cd9827cae3f3df04fd5eda98246d2dde
     public URL toURL() throws MalformedURLException {
         return new URL(this.serverBaseUrl + KEY_SHARES_EP + "/" + this.shareId + "?" + NONCE + "=" + this.nonce);
     }
@@ -110,7 +110,7 @@ public class ShareAccessData {
         }
 
         Pattern pattern =
-            Pattern.compile(".*"+KEY_SHARES_EP+"/([^/]+)(/.*)?"); // ([^/]+) sequence of characters not including /
+            Pattern.compile(".*" + KEY_SHARES_EP + "/([^/]+)(/.*)?"); // ([^/]+) sequence of characters not including /
                                                                  // (/.*)? any characters starting with / or nothing
         Matcher matcher = pattern.matcher(path);
 

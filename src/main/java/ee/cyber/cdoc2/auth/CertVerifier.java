@@ -18,6 +18,7 @@ import java.util.Date;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+
 import ee.cyber.cdoc2.auth.exception.VerificationException;
 
 public class CertVerifier {
@@ -74,8 +75,8 @@ public class CertVerifier {
                 throw new VerificationException("Certificate expired on " + cert.getNotAfter());
             }
 
-        } catch (NoSuchAlgorithmException | CertificateException | CertPathValidatorException |
-                 KeyStoreException
+        } catch (NoSuchAlgorithmException | CertificateException | CertPathValidatorException
+                 | KeyStoreException
                  | InvalidAlgorithmParameterException e) {
             throw new VerificationException("Certificate validation error", e);
         }

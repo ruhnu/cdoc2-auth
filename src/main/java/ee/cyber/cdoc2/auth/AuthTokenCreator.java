@@ -26,7 +26,7 @@ import java.util.Objects;
 /**
  * Create cdoc2 auth-token (sd-jwt)
  */
-public class AuthTokenCreator {
+public final class AuthTokenCreator {
     private static final Logger log = LoggerFactory.getLogger(AuthTokenCreator.class);
 
     private static final Logger tokens_log = LoggerFactory.getLogger("tokens");
@@ -55,8 +55,7 @@ public class AuthTokenCreator {
     private List<Disclosure> initDisclosureArray() {
 
         return Arrays.stream(shareAccessData)
-            .map(audValue ->
-                {
+            .map(audValue -> {
                     try {
                         return new Disclosure(audValue.toURL());
                     } catch (MalformedURLException e) {
@@ -166,7 +165,8 @@ public class AuthTokenCreator {
      */
     public void sign(JWSSigner signer, JWSAlgorithm jwsAlgorithm)
         throws JOSEException, ParseException {
-        //for SID certificate is available after successful authentication (that is actually signing with different key - PIN1)
+        //for SID certificate is available after successful authentication
+        //(that is actually signing with different key - PIN1)
         //for SID use jwk (RSA), for MID jwk (ECDSA)
 
         JWSHeader header =
@@ -195,7 +195,7 @@ public class AuthTokenCreator {
         }
 
         if ((index < 0) || (index > audDisclosureArray.size())) {
-            throw new IllegalArgumentException("Invalid index "+index);
+            throw new IllegalArgumentException("Invalid index " + index);
         }
 
         SDJWT sdjwt = new SDJWT(this.signedJWT.serialize(),
@@ -207,7 +207,8 @@ public class AuthTokenCreator {
             } catch (ParseException e) {
                 throw new IllegalStateException("Should not happen as jwt is not parsed");
             }
-            tokens_log.debug("Disclosures: {}", sdjwt.getDisclosures().stream().map(d-> d.digest() +": "+d.getJson()).toList());
+            tokens_log.debug("Disclosures: {}",
+                sdjwt.getDisclosures().stream().map(d -> d.digest() + ": " + d.getJson()).toList());
         }
 
         return sdjwt.toString();
@@ -245,7 +246,7 @@ public class AuthTokenCreator {
          * @param share to add to data to be signed
          * @return
          */
-        public Builder withShareAccessData(ShareAccessData share){
+        public Builder withShareAccessData(ShareAccessData share) {
             this.keyShares.add(share);
             return this;
         }

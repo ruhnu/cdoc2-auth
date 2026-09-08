@@ -15,7 +15,6 @@ import java.util.Base64;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jwt.JWTClaimsSet;
-import com.nimbusds.jwt.SignedJWT;
 
 import ee.cyber.cdoc2.auth.exception.VerificationException;
 
@@ -36,8 +35,8 @@ public final class SidRpv3SignatureVerifier {
                 publicKey,
                 TokenSignatureValidationParams.fromSessionTokenValidationParams(params)
             );
-        } catch (InvalidAlgorithmParameterException | InvalidKeyException | SignatureException |
-                 NoSuchAlgorithmException e) {
+        } catch (InvalidAlgorithmParameterException | InvalidKeyException | SignatureException
+                 | NoSuchAlgorithmException e) {
             throw new VerificationException(e.getMessage());
         }
     }
@@ -60,8 +59,8 @@ public final class SidRpv3SignatureVerifier {
                     rpChallenge
                 )
             );
-        } catch (InvalidAlgorithmParameterException | InvalidKeyException | SignatureException |
-                 NoSuchAlgorithmException e) {
+        } catch (InvalidAlgorithmParameterException | InvalidKeyException | SignatureException
+                 | NoSuchAlgorithmException e) {
             throw new VerificationException(e.getMessage());
         }
     }
@@ -110,7 +109,7 @@ public final class SidRpv3SignatureVerifier {
 
         if (verifier.verify(signatureBytes)) {
             return;
-        };
+        }
 
         throw new VerificationException("SID RpV3 signature verification failure");
     }
