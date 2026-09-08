@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.3]
+### Bug Fixes
+* Fix RP counter-signature not being bound to the auth token it accompanies. `AuthTokenVerifier`
+  now verifies that the RP counter-signature's `x-rp-signed-hash` matches
+  `SHA-256(signedJWT.getSignature())` of the token being verified, for both MID- and SID
+  RPv3-signed tokens, so a countersignature captured from a different, unrelated session can no
+  longer be paired with another valid auth token to pass verification.
+
 ## [0.7.2]
 ### Improvements
 * Improve the exception handling
