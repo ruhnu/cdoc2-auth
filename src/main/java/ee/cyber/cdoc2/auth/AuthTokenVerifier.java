@@ -122,6 +122,7 @@ public class AuthTokenVerifier {
         }
 
         if (rpCountersignatureParams != null) {
+            verifyRpSignedHashMatchesToken(signedJWT, rpCountersignatureParams);
             RpHttpSignatureVerifier.verify(rpCountersignatureParams);
         }
 
@@ -162,6 +163,32 @@ public class AuthTokenVerifier {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] rpChallengeBytes = digest.digest(signedJWT.getSigningInput());
             return Base64.getEncoder().encodeToString(rpChallengeBytes);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Ensures the RP counter-signature is actually about this token: the RP is expected to
+     * counter-sign SHA-256 of the raw JWS signature bytes of this token (SID RPv3 or MID).
+     * Without this check, any validly-signed, still-fresh RP countersignature captured from a
+     * different session could be paired with this token and pass.
+     */
+    private void verifyRpSignedHashMatchesToken(
+        SignedJWT signedJWT,
+        RpHttpSignatureVerifier.RpHttpSignatureParams rpCountersignatureParams
+    ) throws VerificationException {
+        if (!computeSignatureHash(signedJWT).equals(rpCountersignatureParams.rpSignedHash())) {
+            throw new VerificationException("RP countersignature \"x-rp-signed-hash\" does not "
+                + "match this token's signature");
+        }
+    }
+
+    private String computeSignatureHash(SignedJWT signedJWT) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hashBytes = digest.digest(signedJWT.getSignature().decode());
+            return Base64.getEncoder().encodeToString(hashBytes);
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
         }

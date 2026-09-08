@@ -2,17 +2,37 @@ package ee.cyber.cdoc2.auth;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.KeyStoreException;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
+import java.security.interfaces.ECPrivateKey;
+import java.security.interfaces.ECPublicKey;
+import java.security.spec.ECGenParameterSpec;
 import java.text.ParseException;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import com.authlete.hms.ComponentIdentifier;
+import com.authlete.hms.ComponentValueProvider;
+import com.authlete.hms.SignatureBase;
+import com.authlete.hms.SignatureBaseBuilder;
+import com.authlete.hms.SignatureMetadata;
+import com.authlete.hms.SignatureMetadataParameters;
+import com.authlete.hms.impl.JoseHttpSigner;
+import com.authlete.sd.SDJWT;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.jwk.Curve;
+import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.JWK;
+import com.nimbusds.jwt.SignedJWT;
 
 import ee.cyber.cdoc2.auth.exception.VerificationException;
 
@@ -121,12 +141,58 @@ class AuthTokenVerifierTest {
             MID_AUTH_TOKEN_WITH_FILTERED_DISCLOSURES_FOR_RSA_CERT_BASE64URL,
             MID_RSA_SIGNING_CERTIFICATE_BASE64URL,
             null,
-            getDefaultHttpSignatureParams()
+            selfSignedCountersignatureFor(
+                MID_AUTH_TOKEN_WITH_FILTERED_DISCLOSURES_FOR_RSA_CERT_BASE64URL,
+                "DEMO"
+            )
         );
 
         assertNotNull(response);
         assertTrue(response.nonceUri().getPath().contains(AUTH_NONCE_URI_PATH));
         assertEquals("PNOEE-39901019992", response.identifier().getSemanticsIdentifier());
+    }
+
+    @Test
+    void verifyMidTokenFailsWhenRpSignedHashDoesNotMatchToken() throws Exception {
+        RpHttpSignatureVerifier.RpHttpSignatureParams mismatchedCountersignature =
+            selfSignedCountersignatureFor(
+                MID_AUTH_TOKEN_WITH_FILTERED_DISCLOSURES_FOR_RSA_CERT_BASE64URL,
+                "DEMO"
+            );
+
+        VerificationException exception = assertThrows(VerificationException.class,
+            () -> defaultAuthTokenVerifier.verify(
+                MID_AUTH_TOKEN.getSdJwt(),
+                MID_EC_SIGNING_CERTIFICATE_BASE64URL,
+                null,
+                mismatchedCountersignature
+            )
+        );
+
+        assertTrue(exception.getMessage().contains("does not match this token's signature"),
+            "Actual message: " + exception.getMessage());
+    }
+
+    @Test
+    void verifySidTokenFailsWhenRpSignedHashDoesNotMatchToken() throws Exception {
+        RpHttpSignatureVerifier.RpHttpSignatureParams mismatchedCountersignature =
+            selfSignedCountersignatureFor(MID_AUTH_TOKEN.getSdJwt(), "DEMO");
+
+        VerificationException exception = assertThrows(VerificationException.class,
+            () -> defaultAuthTokenVerifier.verify(
+                SID_AUTH_TOKEN.getSdJwt(),
+                SID_SIGNING_CERTIFICATE_BASE64URL,
+                new AuthTokenVerifier.SidAuthTokenVerificationParams(
+                    SIGNATURE_VALIDATION_PARAMS_BASE64URL,
+                    "DEMO",
+                    "smart-id-demo"
+                ),
+                mismatchedCountersignature
+            )
+        );
+
+        assertTrue(exception.getMessage().contains("does not match this token's signature"),
+            "Actual message: " + exception.getMessage());
     }
 
     @Test
@@ -266,7 +332,7 @@ class AuthTokenVerifierTest {
                 "DEMO",
                 "smart-id-demo"
             ),
-            getDefaultHttpSignatureParams()
+            selfSignedCountersignatureFor(SID_AUTH_TOKEN.getSdJwt(), "DEMO")
         );
 
         assertNotNull(response);
@@ -305,5 +371,68 @@ class AuthTokenVerifierTest {
             CS_SIGNATURE,
             List.of(JWK.parse(RP_SERVER_WELL_KNOWN_JWK_JSON))
         );
+    }
+
+    /**
+     * Builds a genuinely valid RFC 9421 RP counter-signature over the given token's own JWS
+     * signature, using a freshly generated EC key pair — mirrors what
+     * {@code CounterSignImpl.execute()} (cdoc2-rp-server) does, so tests can construct
+     * countersignatures correctly bound to a specific token without needing the real
+     * "rp-server-ec-key-2026" private key.
+     */
+    private static RpHttpSignatureVerifier.RpHttpSignatureParams selfSignedCountersignatureFor(
+        String tokenBase64Url,
+        String rpName
+    ) throws Exception {
+        SDJWT sdjwt = SDJWT.parse(tokenBase64Url);
+        SignedJWT signedJWT = SignedJWT.parse(sdjwt.getCredentialJwt());
+        byte[] midSignatureBytes = signedJWT.getSignature().decode();
+
+        String kid = "rp-server-ec-key-test";
+        ECKey ecKey = generateTestEcKey(kid);
+
+        String signedHash = Base64.getEncoder().encodeToString(
+            MessageDigest.getInstance("SHA-256").digest(midSignatureBytes));
+
+        ComponentValueProvider ctx = new ComponentValueProvider()
+            .setHeaders(Map.of(
+                "x-rp-signed-hash", List.of(signedHash),
+                "x-rp-name", List.of(rpName)
+            ));
+
+        SignatureMetadataParameters params = new SignatureMetadataParameters()
+            .setCreated(Instant.now())
+            .setKeyid(kid);
+
+        SignatureMetadata metadata = new SignatureMetadata(
+            List.of(new ComponentIdentifier("x-rp-signed-hash"), new ComponentIdentifier("x-rp-name")),
+            params
+        );
+
+        SignatureBase base = new SignatureBaseBuilder(ctx).build(metadata);
+        byte[] signatureBytes = base.sign(new JoseHttpSigner(ecKey));
+
+        String signatureInput = "rp-sig=" + metadata.serialize();
+        String signature = "rp-sig=:" + Base64.getEncoder().encodeToString(signatureBytes) + ":";
+
+        return new RpHttpSignatureVerifier.RpHttpSignatureParams(
+            signedHash,
+            rpName,
+            signatureInput,
+            signature,
+            List.of(ecKey.toPublicJWK())
+        );
+    }
+
+    private static ECKey generateTestEcKey(String kid) throws Exception {
+        KeyPairGenerator generator = KeyPairGenerator.getInstance("EC");
+        generator.initialize(new ECGenParameterSpec("secp256r1"));
+        KeyPair keyPair = generator.generateKeyPair();
+
+        return new ECKey.Builder(Curve.P_256, (ECPublicKey) keyPair.getPublic())
+            .privateKey((ECPrivateKey) keyPair.getPrivate())
+            .algorithm(JWSAlgorithm.ES256)
+            .keyID(kid)
+            .build();
     }
 }
