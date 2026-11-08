@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.8.0-SNAPSHOT]
+### Features
+* SSH public key recipients. `SshPkAuthTokenVerifier` verifies ES256 auth tokens whose `iss` is a
+  `ruhnu/pk/<base64 OpenSSH public key blob>` identifier, using the ECDSA P-256 public key decoded
+  from `iss`. No certificate or trust store is needed; the caller compares the returned identifier
+  with the share recipient.
+* `SshPublicKeyParser` parses `ruhnu/pk/` identifiers and OpenSSH public key lines
+  (`ecdsa-sha2-nistp256` only) and builds identifiers from them.
+* `AuthTokenCreator.Builder.withIssuer(String)` creates auth tokens for non-ETSI issuers.
+
 ## [0.7.3]
 ### Bug Fixes
 * Fix RP counter-signature not being bound to the auth token it accompanies. `AuthTokenVerifier`

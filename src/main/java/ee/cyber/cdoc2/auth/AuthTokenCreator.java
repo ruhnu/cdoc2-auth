@@ -31,7 +31,7 @@ public final class AuthTokenCreator {
 
     private static final Logger tokens_log = LoggerFactory.getLogger("tokens");
 
-    private final EtsiIdentifier signerEtsiIdentifier;
+    private final String issuer;
 
     private final ShareAccessData[] shareAccessData;
 
@@ -41,8 +41,8 @@ public final class AuthTokenCreator {
 
     private SignedJWT signedJWT = null; // initialized by sign()
 
-    private AuthTokenCreator(EtsiIdentifier signer, ShareAccessData[] sharesData) {
-        this.signerEtsiIdentifier = signer;
+    private AuthTokenCreator(String issuer, ShareAccessData[] sharesData) {
+        this.issuer = issuer;
         this.shareAccessData = sharesData;
 
         this.audDisclosureArray = initDisclosureArray();  //generate salts
@@ -126,7 +126,7 @@ public final class AuthTokenCreator {
         Map<String, Object> claims = builder.build(true);
 
         JWTClaimsSet regularClaims = new JWTClaimsSet.Builder()
-            .issuer(signerEtsiIdentifier.toString())//iss
+            .issuer(Objects.requireNonNull(issuer, "issuer not set"))//iss
             .build();
 
         claims.putAll(regularClaims.toJSONObject());
@@ -234,10 +234,26 @@ public final class AuthTokenCreator {
 
     public static class Builder {
         EtsiIdentifier etsiIdentifier;
+        // used instead of etsiIdentifier for non-ETSI issuers, see withIssuer()
+        String issuer;
         Collection<ShareAccessData> keyShares = new LinkedList<>();
 
         public Builder withEtsiIdentifier(EtsiIdentifier identifier) {
             this.etsiIdentifier = identifier;
+            this.issuer = null;
+            return this;
+        }
+
+        /**
+         * Set token issuer ("iss") for recipients that are not identified by ETSI identifier,
+         * for example "ruhnu/pk/&lt;blob&gt;" SSH public key recipients. Replaces value set by
+         * {@link #withEtsiIdentifier(EtsiIdentifier)}.
+         * @param recipientId recipient identifier, used as "iss" value
+         * @return this builder
+         */
+        public Builder withIssuer(String recipientId) {
+            this.issuer = Objects.requireNonNull(recipientId);
+            this.etsiIdentifier = null;
             return this;
         }
 
@@ -258,7 +274,9 @@ public final class AuthTokenCreator {
         }
 
         public AuthTokenCreator build() {
-            return new AuthTokenCreator(this.etsiIdentifier, keyShares.toArray(new ShareAccessData[0]));
+            String iss = (this.issuer != null) ? this.issuer
+                : (this.etsiIdentifier != null) ? this.etsiIdentifier.toString() : null;
+            return new AuthTokenCreator(iss, keyShares.toArray(new ShareAccessData[0]));
         }
     }
 
