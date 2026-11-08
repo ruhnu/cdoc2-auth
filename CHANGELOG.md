@@ -7,7 +7,8 @@
   from `iss`. No certificate or trust store is needed; the caller compares the returned identifier
   with the share recipient.
 * `SshPublicKeyParser` parses `ruhnu/pk/` identifiers and OpenSSH public key lines
-  (`ecdsa-sha2-nistp256` only) and builds identifiers from them.
+  (`ecdsa-sha2-nistp256` only), builds identifiers from them, validates their canonical form and
+  computes OpenSSH `SHA256:` fingerprints.
 * `AuthTokenCreator.Builder.withIssuer(String)` creates auth tokens for non-ETSI issuers.
 
 ## [0.7.3]

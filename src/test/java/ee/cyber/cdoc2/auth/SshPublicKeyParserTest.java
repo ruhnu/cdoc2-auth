@@ -82,6 +82,28 @@ class SshPublicKeyParserTest {
     }
 
     @Test
+    void fingerprintShouldMatchSshKeygen() {
+        // ssh-keygen -lf p256.pub: 256 SHA256:ILaep1/NfsYICEypSkuVoSj0tD6P+nvxnABaRhsg+uc p256@test (ECDSA)
+        assertEquals("SHA256:ILaep1/NfsYICEypSkuVoSj0tD6P+nvxnABaRhsg+uc",
+            SshPublicKeyParser.fingerprintFromRecipientId(P256_RECIPIENT_ID));
+    }
+
+    @Test
+    void shouldValidateCanonicalRecipientId() {
+        SshPublicKeyParser.validateRecipientId(P256_RECIPIENT_ID);
+
+        String unpadded = P256_RECIPIENT_ID.substring(0, P256_RECIPIENT_ID.length() - 1);
+        var ex = assertThrows(InvalidSshPublicKeyException.class,
+            () -> SshPublicKeyParser.validateRecipientId(unpadded));
+        assertEquals(Reason.MALFORMED_BASE64, ex.getReason());
+
+        String ed25519Id = "ruhnu/pk/" + ED25519_LINE.split(" ")[1];
+        ex = assertThrows(InvalidSshPublicKeyException.class,
+            () -> SshPublicKeyParser.validateRecipientId(ed25519Id));
+        assertEquals(Reason.UNSUPPORTED_KEY_TYPE, ex.getReason());
+    }
+
+    @Test
     void shouldRejectEd25519() {
         var ex = assertThrows(InvalidSshPublicKeyException.class,
             () -> SshPublicKeyParser.fromOpenSshLine(ED25519_LINE));

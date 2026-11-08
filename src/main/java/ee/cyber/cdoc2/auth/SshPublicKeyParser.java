@@ -3,6 +3,8 @@ package ee.cyber.cdoc2.auth;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.ECPublicKey;
 import java.util.Arrays;
 import java.util.Base64;
@@ -99,6 +101,35 @@ public final class SshPublicKeyParser {
     public static byte[] blobFromRecipientId(String recipientId) {
         fromRecipientId(recipientId); // validate
         return decodeBase64(recipientId.substring(RECIPIENT_ID_PREFIX.length()));
+    }
+
+    /**
+     * OpenSSH SHA256 fingerprint of "ruhnu/pk/&lt;blob&gt;" recipient key, as shown by `ssh-keygen -l` and
+     * `ssh-add -l`, for example "SHA256:ILaep1/NfsYICEypSkuVoSj0tD6P+nvxnABaRhsg+uc".
+     * @param recipientId recipient identifier
+     * @return fingerprint
+     * @throws InvalidSshPublicKeyException if identifier is malformed or key is not supported
+     */
+    public static String fingerprintFromRecipientId(String recipientId) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(blobFromRecipientId(recipientId));
+            return "SHA256:" + Base64.getEncoder().withoutPadding().encodeToString(digest);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
+    }
+
+    /**
+     * Check that recipient identifier is a supported key in canonical form ("ruhnu/pk/" + padded standard
+     * base64 of the key blob), so that string comparison with token "iss" works.
+     * @param recipientId recipient identifier
+     * @throws InvalidSshPublicKeyException if identifier is malformed, not canonical or key is not supported
+     */
+    public static void validateRecipientId(String recipientId) {
+        if (!recipientIdFromBlob(blobFromRecipientId(recipientId)).equals(recipientId)) {
+            throw new InvalidSshPublicKeyException(Reason.MALFORMED_BASE64,
+                "Recipient identifier is not in canonical form (padded standard base64)");
+        }
     }
 
     /**
