@@ -1,5 +1,6 @@
 package ee.cyber.cdoc2.auth;
 
+import java.io.ByteArrayOutputStream;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -14,6 +15,7 @@ import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.jwk.Curve;
 import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.util.Base64URL;
+import com.nimbusds.jose.util.BigIntegerUtils;
 
 import ee.cyber.cdoc2.auth.exception.InvalidSshPublicKeyException;
 import ee.cyber.cdoc2.auth.exception.InvalidSshPublicKeyException.Reason;
@@ -111,12 +113,54 @@ public final class SshPublicKeyParser {
      * @throws InvalidSshPublicKeyException if identifier is malformed or key is not supported
      */
     public static String fingerprintFromRecipientId(String recipientId) {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(blobFromRecipientId(recipientId));
-            return "SHA256:" + Base64.getEncoder().withoutPadding().encodeToString(digest);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 not available", e);
+        return openSshFingerprint(blobFromRecipientId(recipientId));
+    }
+
+    /**
+     * OpenSSH SHA256 fingerprint of a public key wire blob, as shown by `ssh-keygen -l` and `ssh-add -l`:
+     * "SHA256:" followed by the unpadded standard base64 of SHA-256(blob).
+     * @param blob OpenSSH public key wire blob
+     * @return fingerprint, for example "SHA256:ILaep1/NfsYICEypSkuVoSj0tD6P+nvxnABaRhsg+uc"
+     */
+    public static String openSshFingerprint(byte[] blob) {
+        return "SHA256:" + Base64.getEncoder().withoutPadding().encodeToString(sha256(blob));
+    }
+
+    /**
+     * Fingerprint of a public key wire blob as used in "ruhnu/did/" recipient identifiers: the unpadded base64url
+     * of SHA-256(blob). This is the {@link #openSshFingerprint(byte[])} value with "+/" replaced by "-_".
+     * @param blob OpenSSH public key wire blob
+     * @return 43 character fingerprint, for example "ILaep1_NfsYICEypSkuVoSj0tD6P-nvxnABaRhsg-uc"
+     */
+    public static String fingerprintBase64Url(byte[] blob) {
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(sha256(blob));
+    }
+
+    /**
+     * Create OpenSSH public key wire blob ("string ecdsa-sha2-nistp256, string nistp256, string Q") from
+     * an EC P-256 public key. Q is the uncompressed point 0x04||x||y.
+     * @param publicKey P-256 public key
+     * @return key blob
+     * @throws InvalidSshPublicKeyException if the key is not a P-256 key
+     */
+    public static byte[] blobFromPublicKey(ECPublicKey publicKey) {
+        Objects.requireNonNull(publicKey);
+        if (!Curve.P_256.equals(Curve.forECParameterSpec(publicKey.getParams()))) {
+            throw new InvalidSshPublicKeyException(Reason.UNSUPPORTED_KEY_TYPE,
+                "EC key is not a P-256 key, only " + KEY_TYPE_ECDSA_P256 + " is supported");
         }
+        byte[] q = new byte[P256_UNCOMPRESSED_POINT_LEN];
+        q[0] = UNCOMPRESSED_POINT_TAG;
+        copyLeftPadded(BigIntegerUtils.toBytesUnsigned(publicKey.getW().getAffineX()), q, 1);
+        copyLeftPadded(BigIntegerUtils.toBytesUnsigned(publicKey.getW().getAffineY()), q, 1 + P256_COORDINATE_LEN);
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        writeString(out, KEY_TYPE_ECDSA_P256.getBytes(StandardCharsets.US_ASCII));
+        writeString(out, CURVE_NISTP256.getBytes(StandardCharsets.US_ASCII));
+        writeString(out, q);
+        byte[] blob = out.toByteArray();
+        fromBlob(blob); // validate, the point must be on the curve
+        return blob;
     }
 
     /**
@@ -194,6 +238,28 @@ public final class SshPublicKeyParser {
 
     private static String toRecipientId(byte[] blob) {
         return RECIPIENT_ID_PREFIX + Base64.getEncoder().encodeToString(blob);
+    }
+
+    private static byte[] sha256(byte[] data) {
+        Objects.requireNonNull(data);
+        try {
+            return MessageDigest.getInstance("SHA-256").digest(data);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
+    }
+
+    private static void copyLeftPadded(byte[] coordinate, byte[] dest, int offset) {
+        if (coordinate.length > P256_COORDINATE_LEN) {
+            throw new InvalidSshPublicKeyException(Reason.MALFORMED_KEY, "EC point coordinate is too long for P-256");
+        }
+        System.arraycopy(coordinate, 0, dest, offset + P256_COORDINATE_LEN - coordinate.length, coordinate.length);
+    }
+
+    /** Write SSH wire format "string": uint32 length followed by bytes */
+    private static void writeString(ByteArrayOutputStream out, byte[] value) {
+        out.writeBytes(ByteBuffer.allocate(Integer.BYTES).putInt(value.length).array());
+        out.writeBytes(value);
     }
 
     private static byte[] decodeBase64(String base64) {

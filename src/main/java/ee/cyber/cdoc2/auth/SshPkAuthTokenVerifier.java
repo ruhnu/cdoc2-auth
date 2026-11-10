@@ -1,24 +1,15 @@
 package ee.cyber.cdoc2.auth;
 
-import java.net.URI;
 import java.security.interfaces.ECPublicKey;
-import java.util.Map;
 
 import com.authlete.sd.SDJWT;
-import com.nimbusds.jose.JOSEException;
-import com.nimbusds.jose.JWSAlgorithm;
-import com.nimbusds.jose.JWSHeader;
-import com.nimbusds.jose.crypto.ECDSAVerifier;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
 import ee.cyber.cdoc2.auth.exception.InvalidSshPublicKeyException;
 import ee.cyber.cdoc2.auth.exception.VerificationException;
 
-import static ee.cyber.cdoc2.auth.TokenVerifierUtil.decodeSdJwtClaims;
 import static ee.cyber.cdoc2.auth.TokenVerifierUtil.getClaimSet;
-import static ee.cyber.cdoc2.auth.TokenVerifierUtil.getSignedJwt;
-import static ee.cyber.cdoc2.auth.TokenVerifierUtil.getSingleAudArrayElementAsString;
 
 /**
  * Verifies auth tokens (sd-jwt) signed by an SSH public key recipient. The public key is taken from the token
@@ -35,25 +26,8 @@ public class SshPkAuthTokenVerifier {
      * @throws VerificationException if verification fails
      */
     public SshPkTokenVerificationResponse verify(String tokenBase64Url) throws VerificationException {
-        if (tokenBase64Url == null || tokenBase64Url.isEmpty()) {
-            throw new VerificationException("Auth token missing");
-        }
-
-        SDJWT sdjwt;
-        try {
-            sdjwt = SDJWT.parse(tokenBase64Url);
-        } catch (IllegalArgumentException e) {
-            throw new VerificationException("Malformed auth token: " + e.getMessage());
-        }
-        SignedJWT signedJWT = getSignedJwt(sdjwt.getCredentialJwt());
-        JWSHeader header = signedJWT.getHeader();
-
-        if (header.getType() == null || !Constants.TYPE_AUTH_TOKEN.equals(header.getType().toString())) {
-            throw new VerificationException("Unsupported \"typ\" " + header.getType());
-        }
-        if (!JWSAlgorithm.ES256.equals(header.getAlgorithm())) {
-            throw new VerificationException("Unsupported \"alg\" " + header.getAlgorithm());
-        }
+        SDJWT sdjwt = Es256AuthTokenChecks.parse(tokenBase64Url);
+        SignedJWT signedJWT = Es256AuthTokenChecks.es256CredentialJwt(sdjwt);
 
         JWTClaimsSet claimsSet = getClaimSet(signedJWT);
         String iss = claimsSet.getIssuer();
@@ -68,25 +42,7 @@ public class SshPkAuthTokenVerifier {
             throw new VerificationException("Invalid SSH public key in \"iss\": " + e.getMessage(), e);
         }
 
-        try {
-            if (!signedJWT.verify(new ECDSAVerifier(publicKey))) {
-                throw new VerificationException("Auth token signature verification failed");
-            }
-        } catch (JOSEException e) {
-            throw new VerificationException("Auth token signature verification failed: " + e.getMessage(), e);
-        }
-
-        Map<String, Object> decoded;
-        try {
-            decoded = decodeSdJwtClaims(claimsSet, sdjwt.getDisclosures());
-        } catch (IllegalArgumentException e) {
-            throw new VerificationException("Malformed auth token disclosures: " + e.getMessage());
-        }
-        String aud = getSingleAudArrayElementAsString(decoded);
-        try {
-            return new SshPkTokenVerificationResponse(URI.create(aud), iss);
-        } catch (IllegalArgumentException e) {
-            throw new VerificationException("Malformed \"aud\" " + aud);
-        }
+        Es256AuthTokenChecks.verifySignature(signedJWT, publicKey);
+        return new SshPkTokenVerificationResponse(Es256AuthTokenChecks.singleAud(claimsSet, sdjwt), iss);
     }
 }
