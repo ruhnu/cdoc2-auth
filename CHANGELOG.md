@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.9.0-SNAPSHOT]
+### Features
+* DID recipients. `DidRecipientId` parses and builds `ruhnu/did/<did:web DID>/hash/<fingerprint>`
+  identifiers, where the fingerprint is the unpadded base64url SHA-256 of the OpenSSH public key blob.
+  `DidWeb` parses did:web DIDs (domain names only, optional `%3A` port, `:` path segments) and maps
+  them to their `did.json` URL.
+* `DidWebResolver` fetches a DID document with one HTTPS GET: no redirects, an overall deadline that
+  covers the body, a body size limit and a `DidHostPolicy` checked before any request. It classifies
+  the result as `Found`, `NotFound` or `Unavailable`. `DidDocumentKeys` extracts the EC P-256
+  `publicKeyJwk` keys a document lists under `authentication` with the DID as `controller`.
+* `DidAuthTokenVerifier` verifies ES256 auth tokens of DID recipients: the signing key travels in the
+  JWS `jwk` header and its fingerprint must equal the one in `iss`. The caller checks the share
+  recipient and that the DID document still lists the key.
+* `AuthTokenCreator.Builder.withHeaderJwk(JWK)` puts the signing key's public JWK into the JWS header.
+* `SshPublicKeyParser.blobFromPublicKey`, `openSshFingerprint` and `fingerprintBase64Url`.
+
 ## [0.8.0-SNAPSHOT]
 ### Features
 * SSH public key recipients. `SshPkAuthTokenVerifier` verifies ES256 auth tokens whose `iss` is a
