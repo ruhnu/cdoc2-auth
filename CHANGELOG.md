@@ -4,7 +4,7 @@
 ### Features
 * DID recipients. `DidRecipientId` parses and builds `ruhnu/did/<did:web DID>/hash/<fingerprint>`
   identifiers, where the fingerprint is the unpadded base64url SHA-256 of the OpenSSH public key blob.
-  `DidWeb` parses did:web DIDs (domain names only, optional `%3A` port, `:` path segments) and maps
+  `DidWeb` parses did:web DIDs (domain names only, optional `%3A` port, `:` path segments, no `.` or `..` segments or percent-encoded URL delimiters) and maps
   them to their `did.json` URL.
 * `DidWebResolver` fetches a DID document with one HTTPS GET: no redirects, an overall deadline that
   covers the body, a body size limit and a `DidHostPolicy` checked before any request. It classifies

@@ -1,6 +1,8 @@
 package ee.cyber.cdoc2.auth;
 
 import java.net.URI;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 import java.util.regex.Pattern;
@@ -43,6 +45,8 @@ public record DidWeb(String did, String host, int port, List<String> pathSegment
     private static final Pattern PORT = Pattern.compile("[0-9]{1,5}");
     // DID syntax idchar: ALPHA / DIGIT / "." / "-" / "_" / pct-encoded
     private static final Pattern SEGMENT = Pattern.compile("([A-Za-z0-9._-]|%[0-9A-Fa-f]{2})+");
+    // characters that, once a server percent-decodes a segment, would change the document URL's path or query
+    private static final Pattern DECODED_DELIMITER = Pattern.compile("[/\\\\?#;]");
 
     public DidWeb {
         Objects.requireNonNull(did);
@@ -88,8 +92,17 @@ public record DidWeb(String did, String host, int port, List<String> pathSegment
             if (!SEGMENT.matcher(segment).matches()) {
                 throw invalid(did, "path segment \"" + segment + "\" is empty or has characters not allowed in a DID");
             }
+            if (isDotSegmentOrDelimiter(segment)) {
+                // "." and ".." would be resolved by the DID host, so the DID would name another DID's document
+                throw invalid(did, "path segment \"" + segment + "\" is a dot segment or encodes a URL delimiter");
+            }
         }
         return new DidWeb(did, host, port, segments);
+    }
+
+    private static boolean isDotSegmentOrDelimiter(String segment) {
+        String decoded = URLDecoder.decode(segment, StandardCharsets.UTF_8);
+        return ".".equals(decoded) || "..".equals(decoded) || DECODED_DELIMITER.matcher(decoded).find();
     }
 
     /**

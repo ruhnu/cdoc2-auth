@@ -92,6 +92,22 @@ class DidWebTest {
     }
 
     @Test
+    void shouldRejectDotSegmentsAndEncodedDelimiters() {
+        assertInvalid("did:web:example.org:p:alice:..:mallory");
+        assertInvalid("did:web:example.org:p:.:alice");
+        assertInvalid("did:web:example.org:p:%2E%2E:mallory");
+        assertInvalid("did:web:example.org:p:.%2e:mallory");
+        assertInvalid("did:web:example.org:p:alice%2F..%2Fmallory");
+        assertInvalid("did:web:example.org:p:alice%5Cmallory");
+        assertInvalid("did:web:example.org:p:alice%3Fx");
+        assertInvalid("did:web:example.org:p:alice%23x");
+
+        // dots inside a segment are fine
+        assertEquals(URI.create("https://example.org/p/a.b/...x/did.json"),
+            DidWeb.parse("did:web:example.org:p:a.b:...x").documentUri());
+    }
+
+    @Test
     void shouldRejectTooLongDid() {
         String prefix = "did:web:example.org:p:";
         String longest = prefix + "a".repeat(DidWeb.MAX_LENGTH - prefix.length());
