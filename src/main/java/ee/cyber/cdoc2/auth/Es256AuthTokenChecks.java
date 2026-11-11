@@ -2,6 +2,7 @@ package ee.cyber.cdoc2.auth;
 
 import java.net.URI;
 import java.security.interfaces.ECPublicKey;
+import java.util.List;
 import java.util.Map;
 
 import com.authlete.sd.SDJWT;
@@ -72,6 +73,11 @@ final class Es256AuthTokenChecks {
             decoded = decodeSdJwtClaims(claimsSet, sdjwt.getDisclosures());
         } catch (IllegalArgumentException e) {
             throw new VerificationException("Malformed auth token disclosures: " + e.getMessage());
+        }
+        // the shared helper calls toString() on the element, which throws a NullPointerException for a JSON null
+        if (decoded.get("aud") instanceof List<?> audArray && audArray.size() == 1
+            && !(audArray.get(0) instanceof String)) {
+            throw new VerificationException("Disclosed \"aud\" array element is not a string");
         }
         String aud = getSingleAudArrayElementAsString(decoded);
         try {

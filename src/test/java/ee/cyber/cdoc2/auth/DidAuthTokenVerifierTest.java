@@ -9,10 +9,14 @@ import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECGenParameterSpec;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import com.authlete.sd.Disclosure;
 import com.authlete.sd.SDJWT;
+import com.authlete.sd.SDObjectBuilder;
+import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.ECDSASigner;
@@ -22,6 +26,8 @@ import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
 import com.nimbusds.jose.util.Base64URL;
+import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.SignedJWT;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -172,6 +178,14 @@ class DidAuthTokenVerifierTest {
     }
 
     @Test
+    void shouldRejectAudElementThatIsNotAString() throws Exception {
+        assertVerificationFails(tokenWithAud(recipientId, jwk(keyPair), keyPair, Collections.singletonList(null)),
+            "not a string");
+        assertVerificationFails(tokenWithAud(recipientId, jwk(keyPair), keyPair, List.of(Map.of("a", "b"))),
+            "not a string");
+    }
+
+    @Test
     void shouldRejectMissingOrGarbageToken() {
         assertThrows(VerificationException.class, () -> verifier.verify(null));
         assertThrows(VerificationException.class, () -> verifier.verify(""));
@@ -197,6 +211,26 @@ class DidAuthTokenVerifierTest {
             .build();
         creator.sign(new ECDSASigner((ECPrivateKey) signingKey.getPrivate()));
         return creator;
+    }
+
+    /**
+     * Token signed by the key pair whose "aud" disclosure holds the given elements as they are, not as array element
+     * disclosures: AuthTokenCreator cannot create such a token.
+     */
+    static String tokenWithAud(String issuer, JWK headerJwk, KeyPair signingKey, List<?> aud) throws Exception {
+        Disclosure audDisclosure = new Disclosure("aud", aud);
+        SDObjectBuilder builder = new SDObjectBuilder();
+        builder.putSDClaim(audDisclosure);
+        Map<String, Object> claims = builder.build(true);
+        claims.put("iss", issuer);
+        JWSHeader.Builder header = new JWSHeader.Builder(JWSAlgorithm.ES256)
+            .type(new JOSEObjectType(Constants.TYPE_AUTH_TOKEN));
+        if (headerJwk != null) {
+            header.jwk(headerJwk);
+        }
+        SignedJWT jwt = new SignedJWT(header.build(), JWTClaimsSet.parse(claims));
+        jwt.sign(new ECDSASigner((ECPrivateKey) signingKey.getPrivate()));
+        return new SDJWT(jwt.serialize(), List.of(audDisclosure)).toString();
     }
 
     private void assertVerificationFails(String token, String expectedMessagePart) {
