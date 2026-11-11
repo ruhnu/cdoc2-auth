@@ -88,6 +88,14 @@ class DidWebResolverTest {
     }
 
     @Test
+    void documentIdIsEscapedInTheReason() {
+        // a line break in "id" would otherwise start a forged line in the shares server log
+        host.onJson(DOC_PATH, "{\"id\":\"x)\\n2026-11-11 INFO forged\"}");
+
+        assertNotFound(resolver.resolve(did), "another DID (x)\\u000a2026-11-11 INFO forged)");
+    }
+
+    @Test
     void bodyThatIsNotAJsonObjectIsNotFound() {
         host.onJson(DOC_PATH, "<html>not json</html>");
         assertNotFound(resolver.resolve(did), "not a JSON object");

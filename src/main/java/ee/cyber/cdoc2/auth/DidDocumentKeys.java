@@ -17,6 +17,8 @@ import com.nimbusds.jose.jwk.JWK;
 
 import ee.cyber.cdoc2.auth.exception.InvalidSshPublicKeyException;
 
+import static ee.cyber.cdoc2.auth.UntrustedText.printable;
+
 /**
  * The SSH keys a DID document lists for authentication. A document lists a key if and only if its
  * "authentication" contains a verification method, embedded or as a reference to an entry in "verificationMethod",
@@ -91,7 +93,7 @@ public final class DidDocumentKeys {
                 id = absolute(did, reference);
                 method = methodsById.get(id);
                 if (method == null) {
-                    skipped.add(id + ": referenced verification method not found");
+                    skipped.add(printable(id) + ": referenced verification method not found");
                     continue;
                 }
             } else {
@@ -104,7 +106,8 @@ public final class DidDocumentKeys {
 
             String problem = checkMethod(did, method);
             if (problem != null) {
-                skipped.add(id + ": " + problem);
+                // problem can quote the document too: controller, crv, JWK parse errors
+                skipped.add(printable(id) + ": " + printable(problem));
                 continue;
             }
             ECPublicKey publicKey = toP256PublicKey(asMap(method.get(PUBLIC_KEY_JWK)));
@@ -124,7 +127,8 @@ public final class DidDocumentKeys {
 
     /**
      * @return one description per verification method in "authentication" that is not listed, for example
-     *     "did:web:example.org#key-2: unsupported key type OKP Ed25519"
+     *     "did:web:example.org#key-2: unsupported key type OKP Ed25519"; text from the document is shortened and
+     *     its control characters escaped, so an entry can be logged or printed as is
      */
     public List<String> skipped() {
         return skipped;

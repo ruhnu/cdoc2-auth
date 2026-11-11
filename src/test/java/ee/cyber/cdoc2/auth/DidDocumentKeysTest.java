@@ -142,6 +142,32 @@ class DidDocumentKeysTest {
         assertSkipped(keys, DID + "#key-1: invalid");
     }
 
+    @Test
+    void shouldEscapeDocumentTextInSkippedEntries() throws Exception {
+        // JSON escapes: a line break that would start a forged log line, an ANSI sequence that hides terminal output
+        String forged = "did:web:evil\\n2026-11-11 INFO forged\\u001b[8m";
+        String doc = document("[]", "[\"#a\\nb\"," + method(DID + "#key-1", forged, jwk(P256_KEY)) + "]");
+
+        DidDocumentKeys keys = extract(doc);
+
+        assertEquals(2, keys.skipped().size(), keys.skipped().toString());
+        for (String entry : keys.skipped()) {
+            assertTrue(entry.chars().noneMatch(Character::isISOControl), entry);
+        }
+        assertSkipped(keys, DID + "#a\\u000ab: referenced verification method not found");
+        assertSkipped(keys, "controlled by another DID (did:web:evil\\u000a2026-11-11 INFO forged\\u001b[8m)");
+    }
+
+    @Test
+    void shouldShortenLongDocumentTextInSkippedEntries() throws Exception {
+        String doc = document("[]", "[\"#" + "k".repeat(1000) + "\"]");
+
+        String entry = extract(doc).skipped().get(0);
+
+        assertTrue(entry.startsWith((DID + "#" + "k".repeat(UntrustedText.MAX_SHOWN)).substring(0,
+            UntrustedText.MAX_SHOWN) + "...: referenced"), entry);
+    }
+
     static String document(String verificationMethods, String authentication) {
         return "{\"@context\":[\"https://www.w3.org/ns/did/v1\"],\"id\":\"" + DID + "\","
             + "\"verificationMethod\":" + verificationMethods + ",\"authentication\":" + authentication + "}";

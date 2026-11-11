@@ -164,7 +164,8 @@ public final class DidWebResolver {
             return notFound(did, "DID document is not a JSON object");
         }
         if (!did.did().equals(document.get("id"))) {
-            return notFound(did, "DID document is for another DID (" + document.get("id") + ")");
+            return notFound(did,
+                "DID document is for another DID (" + UntrustedText.printable(document.get("id")) + ")");
         }
         return new DidResolution.Found(DidDocumentKeys.extract(did.did(), document));
     }
