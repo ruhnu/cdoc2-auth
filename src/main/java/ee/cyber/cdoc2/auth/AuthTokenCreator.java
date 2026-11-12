@@ -8,6 +8,7 @@ import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.JWSSigner;
+import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import ee.cyber.cdoc2.auth.exception.MalformedAuthUrlException;
@@ -35,15 +36,19 @@ public final class AuthTokenCreator {
 
     private final ShareAccessData[] shareAccessData;
 
+    // public key put into the JWS "jwk" header, null for no "jwk" header
+    private final JWK headerJwk;
+
     private final List<Disclosure> audDisclosureArray;
 
     private final Disclosure disclosedShareAccessData;
 
     private SignedJWT signedJWT = null; // initialized by sign()
 
-    private AuthTokenCreator(String issuer, ShareAccessData[] sharesData) {
+    private AuthTokenCreator(String issuer, ShareAccessData[] sharesData, JWK headerJwk) {
         this.issuer = issuer;
         this.shareAccessData = sharesData;
+        this.headerJwk = headerJwk;
 
         this.audDisclosureArray = initDisclosureArray();  //generate salts
         this.disclosedShareAccessData = genDisclosedAudience(); //generate salt
@@ -169,11 +174,14 @@ public final class AuthTokenCreator {
         //(that is actually signing with different key - PIN1)
         //for SID use jwk (RSA), for MID jwk (ECDSA)
 
-        JWSHeader header =
+        JWSHeader.Builder headerBuilder =
             new JWSHeader.Builder(jwsAlgorithm)
                 // signature padding is supported
-                .type(new JOSEObjectType(Constants.TYPE_AUTH_TOKEN))
-                .build();
+                .type(new JOSEObjectType(Constants.TYPE_AUTH_TOKEN));
+        if (headerJwk != null) {
+            headerBuilder.jwk(headerJwk);
+        }
+        JWSHeader header = headerBuilder.build();
 
         // Create a credential JWT. (not signed yet)
         SignedJWT jwt = new SignedJWT(header, createPayload());
@@ -237,6 +245,7 @@ public final class AuthTokenCreator {
         // used instead of etsiIdentifier for non-ETSI issuers, see withIssuer()
         String issuer;
         Collection<ShareAccessData> keyShares = new LinkedList<>();
+        JWK headerJwk;
 
         public Builder withEtsiIdentifier(EtsiIdentifier identifier) {
             this.etsiIdentifier = identifier;
@@ -254,6 +263,18 @@ public final class AuthTokenCreator {
         public Builder withIssuer(String recipientId) {
             this.issuer = Objects.requireNonNull(recipientId);
             this.etsiIdentifier = null;
+            return this;
+        }
+
+        /**
+         * Put the signing key's public key into the JWS "jwk" header (RFC 7515 section 4.1.3), as needed for
+         * "ruhnu/did/" recipients, whose identifier holds only the key's fingerprint. Only the public members are
+         * used, so a private JWK can be given.
+         * @param signingKey JWK of the signing key
+         * @return this builder
+         */
+        public Builder withHeaderJwk(JWK signingKey) {
+            this.headerJwk = Objects.requireNonNull(signingKey).toPublicJWK();
             return this;
         }
 
@@ -276,7 +297,7 @@ public final class AuthTokenCreator {
         public AuthTokenCreator build() {
             String iss = (this.issuer != null) ? this.issuer
                 : (this.etsiIdentifier != null) ? this.etsiIdentifier.toString() : null;
-            return new AuthTokenCreator(iss, keyShares.toArray(new ShareAccessData[0]));
+            return new AuthTokenCreator(iss, keyShares.toArray(new ShareAccessData[0]), headerJwk);
         }
     }
 

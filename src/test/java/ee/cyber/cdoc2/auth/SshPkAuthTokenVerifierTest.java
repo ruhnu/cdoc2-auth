@@ -8,6 +8,7 @@ import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECGenParameterSpec;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import com.authlete.sd.Disclosure;
@@ -172,6 +173,14 @@ class SshPkAuthTokenVerifierTest {
         String both = new SDJWT(token1.getCredentialJwt(), disclosures).toString();
 
         assertVerificationFails(both, "More than one element");
+    }
+
+    @Test
+    void shouldRejectNullAudElement() throws Exception {
+        String token = DidAuthTokenVerifierTest.tokenWithAud(recipientId, null, keyPair,
+            Collections.singletonList(null));
+
+        assertVerificationFails(token, "not a string");
     }
 
     @Test

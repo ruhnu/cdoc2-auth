@@ -4,7 +4,9 @@ import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyPairGenerator;
 import java.security.interfaces.ECPublicKey;
+import java.security.spec.ECGenParameterSpec;
 import java.util.Arrays;
 import java.util.Base64;
 
@@ -213,6 +215,52 @@ class SshPublicKeyParserTest {
         ex = assertThrows(InvalidSshPublicKeyException.class,
             () -> SshPublicKeyParser.fromOpenSshLine(P256_BLOB));
         assertEquals(Reason.MALFORMED_KEY, ex.getReason());
+    }
+
+    @Test
+    void shouldBuildBlobFromPublicKey() {
+        ECPublicKey key = SshPublicKeyParser.fromRecipientId(P256_RECIPIENT_ID);
+
+        assertArrayEquals(Base64.getDecoder().decode(P256_BLOB), SshPublicKeyParser.blobFromPublicKey(key));
+    }
+
+    @Test
+    void shouldLeftPadShortCoordinatesInBlob() throws Exception {
+        KeyPairGenerator generator = KeyPairGenerator.getInstance("EC");
+        generator.initialize(new ECGenParameterSpec("secp256r1"));
+        // about 1 in 128 keys has a coordinate shorter than 32 bytes
+        ECPublicKey shortKey = null;
+        for (int i = 0; i < 10_000 && shortKey == null; i++) {
+            ECPublicKey key = (ECPublicKey) generator.generateKeyPair().getPublic();
+            if (key.getW().getAffineX().bitLength() <= 248 || key.getW().getAffineY().bitLength() <= 248) {
+                shortKey = key;
+            }
+        }
+        assertTrue(shortKey != null, "no key with a short coordinate generated");
+
+        byte[] blob = SshPublicKeyParser.blobFromPublicKey(shortKey);
+
+        assertEquals(4 + 19 + 4 + 8 + 4 + 65, blob.length);
+        assertEquals(shortKey.getW(), SshPublicKeyParser.fromBlob(blob).getW());
+    }
+
+    @Test
+    void shouldRejectNonP256PublicKey() throws Exception {
+        KeyPairGenerator generator = KeyPairGenerator.getInstance("EC");
+        generator.initialize(new ECGenParameterSpec("secp384r1"));
+        ECPublicKey p384 = (ECPublicKey) generator.generateKeyPair().getPublic();
+
+        var ex = assertThrows(InvalidSshPublicKeyException.class, () -> SshPublicKeyParser.blobFromPublicKey(p384));
+        assertEquals(Reason.UNSUPPORTED_KEY_TYPE, ex.getReason());
+    }
+
+    @Test
+    void blobFingerprintsShouldMatchSshKeygen() {
+        // ssh-keygen -lf p256.pub: 256 SHA256:ILaep1/NfsYICEypSkuVoSj0tD6P+nvxnABaRhsg+uc p256@test (ECDSA)
+        byte[] blob = Base64.getDecoder().decode(P256_BLOB);
+
+        assertEquals("SHA256:ILaep1/NfsYICEypSkuVoSj0tD6P+nvxnABaRhsg+uc", SshPublicKeyParser.openSshFingerprint(blob));
+        assertEquals("ILaep1_NfsYICEypSkuVoSj0tD6P-nvxnABaRhsg-uc", SshPublicKeyParser.fingerprintBase64Url(blob));
     }
 
     static byte[] sshBlob(byte[]... fields) {
